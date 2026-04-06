@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { PlusCircle } from 'lucide-react';
-import api from '../services/api';
+import { useApi } from '../hooks/useApi';
 import UserTable from '../components/UserTable';
 import UserForm from '../components/UserForm';
 
@@ -8,27 +8,25 @@ export default function Dashboard() {
   const [users, setUsers] = useState([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [successMsg, setSuccessMsg] = useState('');
+  
+  const { get, post, put, remove, loading, error } = useApi();
+  const [initialLoading, setInitialLoading] = useState(true);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async (hideSpinner = false) => {
     try {
-      setLoading(true);
-      const response = await api.get('/users');
-      setUsers(response.data);
-      setError(null);
+      if (!hideSpinner) setInitialLoading(true);
+      const data = await get('/users');
+      if (data) setUsers(data);
     } catch (err) {
-      setError('Failed to fetch users. Ensure backend is running.');
-      console.error(err);
+      // Handled by hook antd toast
     } finally {
-      setLoading(false);
+      setInitialLoading(false);
     }
-  };
+  }, [get]);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchUsers(false);
+  }, [fetchUsers]);
 
   const handleAddUser = () => {
     setEditingUser(null);
@@ -43,36 +41,27 @@ export default function Dashboard() {
   const handleDeleteUser = async (id) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        await api.delete(`/users/${id}`);
-        showSuccessMessage('User deleted successfully!');
-        fetchUsers();
-      } catch (err) {
-        setError('Failed to delete user.');
-      }
+        await remove(`/users/${id}`, 'User deleted successfully!');
+        // Refresh silently so the table avoids a complete flash
+        fetchUsers(true); 
+      } catch (err) { }
     }
   };
 
   const handleFormSubmit = async (data) => {
     try {
       if (editingUser) {
-        await api.put(`/users/${editingUser.Id}`, data);
-        showSuccessMessage('User updated successfully!');
+        await put(`/users/${editingUser.Id}`, data, 'User updated successfully!');
       } else {
-        await api.post('/users', data);
-        showSuccessMessage('User created successfully!');
+        await post('/users', data, 'User created successfully!');
       }
       setIsFormOpen(false);
-      fetchUsers();
+      // Refresh silently
+      fetchUsers(true);
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Failed to save user.';
-      setError(errorMsg);
-      alert('Error: ' + errorMsg);
+      // Let the form stay open so user can fix their inputs!
+      // The toast from useApi ensures they see the error
     }
-  };
-
-  const showSuccessMessage = (msg) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(''), 3000);
   };
 
   return (
@@ -92,19 +81,9 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded shadow-sm">
-            <p>{error}</p>
-          </div>
-        )}
+        {/* Global hook error can sit here as a secondary fallback if needed, but antd covers alerts */}
 
-        {successMsg && (
-          <div className="bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-6 rounded shadow-sm">
-            <p>{successMsg}</p>
-          </div>
-        )}
-
-        {loading ? (
+        {initialLoading ? (
           <div className="flex justify-center p-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
           </div>
@@ -113,6 +92,7 @@ export default function Dashboard() {
             users={users} 
             onEdit={handleEditUser} 
             onDelete={handleDeleteUser} 
+            isActionLoading={loading && !initialLoading}
           />
         )}
 
@@ -121,6 +101,7 @@ export default function Dashboard() {
             initialData={editingUser} 
             onSubmit={handleFormSubmit} 
             onCancel={() => setIsFormOpen(false)} 
+            isSubmitting={loading && !initialLoading}
           />
         )}
       </div>

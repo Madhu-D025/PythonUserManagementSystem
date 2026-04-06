@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit, Trash2 } from 'lucide-react';
 
-export default function UserTable({ users, onEdit, onDelete }) {
+export default function UserTable({ users, onEdit, onDelete, isActionLoading }) {
   if (!users || users.length === 0) {
     return (
       <div className="bg-white p-8 rounded-lg shadow text-center text-gray-500">
@@ -11,7 +11,7 @@ export default function UserTable({ users, onEdit, onDelete }) {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
+    <div className={`bg-white rounded-lg shadow overflow-hidden transition-opacity ${isActionLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
